@@ -4,14 +4,17 @@ import AdminLayout from '@/components/layout/AdminLayout'
 import { timeAgo } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2)
+}
+
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [selected, setSelected]   = useState<string | null>(null)
 
   useEffect(() => {
-    // Derive unique customers from orders
     fetch('/api/admin/orders?per_page=100')
       .then(r => r.json())
       .then(d => {
@@ -20,16 +23,16 @@ export default function AdminCustomersPage() {
         orders.forEach((o: any) => {
           if (!map.has(o.customer_email)) {
             map.set(o.customer_email, {
-              id: o.customer_email,
-              name: o.customer_name,
-              email: o.customer_email,
-              orders: 0,
+              id:          o.customer_email,
+              name:        o.customer_name,
+              email:       o.customer_email,
+              orders:      0,
               total_spent: 0,
-              last_order: o.created_at,
+              last_order:  o.created_at,
             })
           }
           const c = map.get(o.customer_email)
-          c.orders += 1
+          c.orders      += 1
           c.total_spent += o.total || 0
           if (new Date(o.created_at) > new Date(c.last_order)) c.last_order = o.created_at
         })
@@ -40,14 +43,12 @@ export default function AdminCustomersPage() {
   }, [])
 
   const filtered = customers.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase())
+    !search ||
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.email.toLowerCase().includes(search.toLowerCase())
   )
 
   const selectedCustomer = customers.find(c => c.id === selected)
-
-  function getInitials(name: string) {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-  }
 
   return (
     <>
@@ -56,8 +57,12 @@ export default function AdminCustomersPage() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2">
             <div className="mb-4">
-              <input className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400 placeholder:text-slate-400"
-                placeholder="Search customers…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input
+                className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400 placeholder:text-slate-400"
+                placeholder="Search customers…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
 
             <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
@@ -115,7 +120,9 @@ export default function AdminCustomersPage() {
                   </div>
                   <div>
                     <h2 className="text-white font-bold text-lg">{selectedCustomer.name}</h2>
-                    <a href={`mailto:${selectedCustomer.email}`} className="text-green-400 text-xs hover:underline">{selectedCustomer.email}</a>
+                    <a href={`mailto:${selectedCustomer.email}`} className="text-green-400 text-xs hover:underline">
+                      {selectedCustomer.email}
+                    </a>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-5">
@@ -150,8 +157,4 @@ export default function AdminCustomersPage() {
       </AdminLayout>
     </>
   )
-
-  function getInitials(name: string) {
-    return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-  }
 }
