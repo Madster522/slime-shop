@@ -1,10 +1,8 @@
-import { SpeedInsights } from "@vercel/speed-insights/next"
-import { Analytics } from "@vercel/analytics/next"
 import type { AppProps } from 'next/app'
 import { SessionProvider } from 'next-auth/react'
 import { Toaster } from 'react-hot-toast'
 import { CartProvider } from '@/context/CartContext'
-import '@/styles/globals.css'
+import '../styles/globals.css'
 
 export default function App({
   Component,
