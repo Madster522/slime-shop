@@ -1,150 +1,99 @@
-import React, { useState } from 'react'
-import Head from 'next/head'
-import AdminLayout from '@/components/layout/AdminLayout'
+import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import AdminLayout from '@/components/layout/AdminLayout'
 
-const ADMIN_EMAILS = ['zach17732@gmail.com', 'slimestudio04@gmail.com', 'charlieslimestudios@gmail.com']
-const SUPPORT_EMAILS = { primary: 'slimestudio04@gmail.com', secondary: 'charlieslimestudios@gmail.com' }
+const defaultCompany = {
+  company_name: 'Slime Shop',
+  tagline: 'Custom 3D printed slime products',
+  support_email: '',
+  discord_url: '',
+  business_hours: '',
+  announcement: '',
+}
+
+const defaultStatus = {
+  store_online: true,
+  accepting_orders: true,
+  maintenance_mode: false,
+  maintenance_title: 'Slime Shop is getting upgraded',
+  maintenance_message: 'We are updating the store. Please check back soon.',
+  banner_enabled: true,
+  banner_message: 'Slime Shop is online and accepting custom orders.',
+}
 
 export default function AdminSettingsPage() {
-  const [tab, setTab] = useState<'general'|'admins'|'discord'|'shipping'>('general')
-  const [discord, setDiscord] = useState({
-    joinServer:   'https://discord.gg/slimeshop',
-    orderSupport: 'https://discord.gg/slimeshop-support',
-    community:    'https://discord.gg/slimeshop-community',
-  })
-  const [shipping, setShipping] = useState({ default: '4', express: '12', freeThreshold: '30' })
-  const [siteName, setSiteName] = useState('Slime Shop')
-  const [tagline, setTagline] = useState('Custom 3D Printed Slime Goodies 🟢')
+  const [company, setCompany] = useState(defaultCompany)
+  const [status, setStatus] = useState(defaultStatus)
+  const [loading, setLoading] = useState(false)
 
-  const save = () => toast.success('Settings saved! (connect to Supabase to persist)')
+  useEffect(() => {
+    fetch('/api/admin/site-settings')
+      .then(r => r.json())
+      .then(data => {
+        setCompany({ ...defaultCompany, ...(data.settings?.company || {}) })
+        setStatus({ ...defaultStatus, ...(data.settings?.status || {}) })
+      })
+      .catch(() => {})
+  }, [])
 
-  const inputCls = 'w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400'
-  const labelCls = 'text-slate-400 text-xs font-semibold block mb-1'
-
-  const tabs = [
-    { key: 'general',  label: '⚙️ General' },
-    { key: 'admins',   label: '👑 Admins' },
-    { key: 'discord',  label: '💬 Discord' },
-    { key: 'shipping', label: '📦 Shipping' },
-  ]
+  async function save(key: 'company' | 'status', value: any) {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      toast.success('Saved')
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <Head><title>Settings — Admin</title></Head>
-      <AdminLayout title="Settings">
+    <AdminLayout title="Company Settings">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="slime-card p-6">
+          <h2 className="text-2xl font-black">Company Info</h2>
+          <p className="mt-2 text-slate-400">This makes the site feel more like a real company.</p>
+          <div className="mt-6 grid gap-4">
+            <input className="slime-input" placeholder="Company name" value={company.company_name} onChange={e => setCompany({ ...company, company_name: e.target.value })} />
+            <input className="slime-input" placeholder="Tagline" value={company.tagline} onChange={e => setCompany({ ...company, tagline: e.target.value })} />
+            <input className="slime-input" placeholder="Support email" value={company.support_email} onChange={e => setCompany({ ...company, support_email: e.target.value })} />
+            <input className="slime-input" placeholder="Discord URL" value={company.discord_url} onChange={e => setCompany({ ...company, discord_url: e.target.value })} />
+            <input className="slime-input" placeholder="Business hours" value={company.business_hours} onChange={e => setCompany({ ...company, business_hours: e.target.value })} />
+            <textarea className="slime-input min-h-28" placeholder="Announcement" value={company.announcement} onChange={e => setCompany({ ...company, announcement: e.target.value })} />
+            <button disabled={loading} onClick={() => save('company', company)} className="slime-button">Save Company Info</button>
+          </div>
+        </section>
+        <section className="slime-card p-6">
+          <h2 className="text-2xl font-black">Online + Maintenance Status</h2>
+          <p className="mt-2 text-slate-400">Turn the store on/off, pause orders, or show a maintenance page.</p>
+          <div className="mt-6 grid gap-4">
+            <Toggle label="Store online" checked={status.store_online} onChange={v => setStatus({ ...status, store_online: v })} />
+            <Toggle label="Accepting orders" checked={status.accepting_orders} onChange={v => setStatus({ ...status, accepting_orders: v })} />
+            <Toggle label="Maintenance mode" checked={status.maintenance_mode} onChange={v => setStatus({ ...status, maintenance_mode: v })} />
+            <Toggle label="Show top banner" checked={status.banner_enabled} onChange={v => setStatus({ ...status, banner_enabled: v })} />
+            <input className="slime-input" placeholder="Banner message" value={status.banner_message} onChange={e => setStatus({ ...status, banner_message: e.target.value })} />
+            <input className="slime-input" placeholder="Maintenance title" value={status.maintenance_title} onChange={e => setStatus({ ...status, maintenance_title: e.target.value })} />
+            <textarea className="slime-input min-h-28" placeholder="Maintenance message" value={status.maintenance_message} onChange={e => setStatus({ ...status, maintenance_message: e.target.value })} />
+            <button disabled={loading} onClick={() => save('status', status)} className="slime-button">Save Status</button>
+          </div>
+        </section>
+      </div>
+    </AdminLayout>
+  )
+}
 
-        <div className="flex flex-wrap gap-2 mb-8 bg-slate-800 rounded-2xl p-1.5 border border-slate-700 w-fit">
-          {tabs.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key as any)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === t.key ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="max-w-2xl space-y-6">
-
-          {/* General */}
-          {tab === 'general' && (
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 space-y-4">
-              <h2 className="text-white font-bold text-xl mb-4">General Settings</h2>
-              <div>
-                <label className={labelCls}>SITE NAME</label>
-                <input className={inputCls} value={siteName} onChange={e => setSiteName(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>TAGLINE</label>
-                <input className={inputCls} value={tagline} onChange={e => setTagline(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>PRIMARY SUPPORT EMAIL</label>
-                <input className={inputCls} defaultValue={SUPPORT_EMAILS.primary} />
-              </div>
-              <div>
-                <label className={labelCls}>SECONDARY SUPPORT EMAIL</label>
-                <input className={inputCls} defaultValue={SUPPORT_EMAILS.secondary} />
-              </div>
-              <button onClick={save} className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold text-sm transition-colors">
-                Save Changes
-              </button>
-            </div>
-          )}
-
-          {/* Admins */}
-          {tab === 'admins' && (
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
-              <h2 className="text-white font-bold text-xl mb-2">Admin Accounts</h2>
-              <p className="text-slate-500 text-xs mb-5">
-                To add or remove admins, update the <code className="text-green-400">ADMIN_EMAILS</code> array in
-                <code className="text-green-400"> pages/api/auth/[...nextauth].ts</code> and redeploy.
-              </p>
-              <div className="space-y-3">
-                {ADMIN_EMAILS.map((email, i) => (
-                  <div key={email} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-green-700 flex items-center justify-center text-white font-bold text-sm">
-                        {email[0].toUpperCase()}
-                      </div>
-                      <span className="text-white text-sm">{email}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {i === 0 && <span className="text-xs bg-yellow-900/50 text-yellow-400 px-2 py-0.5 rounded-full">Owner</span>}
-                      <span className="text-xs bg-green-900/50 text-green-400 px-2 py-0.5 rounded-full">Admin</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Discord */}
-          {tab === 'discord' && (
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 space-y-4">
-              <h2 className="text-white font-bold text-xl mb-4">Discord Links</h2>
-              {[
-                { key: 'joinServer',   label: 'JOIN SERVER LINK' },
-                { key: 'orderSupport', label: 'ORDER SUPPORT LINK' },
-                { key: 'community',    label: 'COMMUNITY LINK' },
-              ].map(({ key, label }) => (
-                <div key={key}>
-                  <label className={labelCls}>{label}</label>
-                  <input className={inputCls} value={(discord as any)[key]}
-                    onChange={e => setDiscord(d => ({ ...d, [key]: e.target.value }))}
-                    placeholder="https://discord.gg/..." />
-                </div>
-              ))}
-              <button onClick={save} className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold text-sm transition-colors">
-                Save Links
-              </button>
-            </div>
-          )}
-
-          {/* Shipping */}
-          {tab === 'shipping' && (
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 space-y-4">
-              <h2 className="text-white font-bold text-xl mb-4">Shipping Rates</h2>
-              <div>
-                <label className={labelCls}>DEFAULT SHIPPING ($)</label>
-                <input className={inputCls} type="number" step="0.01" value={shipping.default} onChange={e => setShipping(s => ({ ...s, default: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>EXPRESS SHIPPING ($)</label>
-                <input className={inputCls} type="number" step="0.01" value={shipping.express} onChange={e => setShipping(s => ({ ...s, express: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>FREE SHIPPING THRESHOLD ($)</label>
-                <input className={inputCls} type="number" step="1" value={shipping.freeThreshold} onChange={e => setShipping(s => ({ ...s, freeThreshold: e.target.value }))} />
-                <p className="text-slate-600 text-xs mt-1">Orders above this amount get free shipping</p>
-              </div>
-              <button onClick={save} className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold text-sm transition-colors">
-                Save Shipping
-              </button>
-            </div>
-          )}
-        </div>
-
-      </AdminLayout>
-    </>
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950 px-4 py-3">
+      <span className="font-bold">{label}</span>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="h-5 w-5 accent-green-500" />
+    </label>
   )
 }

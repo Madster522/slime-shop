@@ -1,166 +1,115 @@
-import React, { useState, useEffect } from 'react'
-import Head from 'next/head'
-import AdminLayout from '@/components/layout/AdminLayout'
-import { formatDollars, timeAgo } from '@/lib/utils'
+import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import AdminLayout from '@/components/layout/AdminLayout'
+import { formatMoney } from '@/lib/utils'
 
-const empty = { code: '', type: 'percent', value: '', min_order_amount: '', max_discount_amount: '', max_uses: '', expires_at: '', description: '' }
+const blank = {
+  code: '',
+  name: '',
+  description: '',
+  type: 'percent',
+  value: 10,
+  min_order_amount: '',
+  max_discount_amount: '',
+  max_uses: '',
+  starts_at: '',
+  expires_at: '',
+}
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm]       = useState(empty)
-  const [saving, setSaving]   = useState(false)
+  const [form, setForm] = useState<any>(blank)
+  const [loading, setLoading] = useState(false)
 
-  const fetchCoupons = () => fetch('/api/admin/coupons').then(r => r.json()).then(d => { setCoupons(d.coupons || []); setLoading(false) }).catch(() => setLoading(false))
-  useEffect(() => { fetchCoupons() }, [])
+  async function loadCoupons() {
+    const res = await fetch('/api/admin/coupons')
+    const data = await res.json()
+    setCoupons(data.coupons || [])
+  }
 
-  const handleCreate = async () => {
-    if (!form.code || !form.value) { toast.error('Code and value are required'); return }
-    setSaving(true)
+  useEffect(() => { loadCoupons().catch(() => {}) }, [])
+
+  async function createCoupon() {
+    setLoading(true)
     try {
-      const res = await fetch('/api/admin/coupons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const res = await fetch('/api/admin/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
       const data = await res.json()
-      if (!res.ok) { toast.error(data.error); return }
-      toast.success('Coupon created!')
-      setShowForm(false); setForm(empty); fetchCoupons()
-    } finally { setSaving(false) }
+      if (!res.ok) throw new Error(data.error || 'Could not create coupon')
+      toast.success('Coupon created')
+      setForm(blank)
+      await loadCoupons()
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const toggle = async (c: any) => {
-    await fetch(`/api/admin/coupons/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: !c.is_active }) })
-    fetchCoupons()
+  async function toggle(coupon: any) {
+    const res = await fetch(`/api/admin/coupons/${coupon.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !coupon.is_active }),
+    })
+    if (!res.ok) return toast.error('Update failed')
+    toast.success('Updated')
+    loadCoupons().catch(() => {})
   }
 
-  const del = async (id: string) => {
+  async function remove(id: string) {
     if (!confirm('Delete this coupon?')) return
-    await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' })
-    toast.success('Deleted'); fetchCoupons()
+    const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' })
+    if (!res.ok) return toast.error('Delete failed')
+    toast.success('Deleted')
+    loadCoupons().catch(() => {})
   }
-
-  const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
   return (
-    <>
-      <Head><title>Coupons — Admin</title></Head>
-      <AdminLayout title="Discount Coupons 🎟️">
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-slate-400 text-sm">{coupons.length} coupon{coupons.length !== 1 ? 's' : ''}</p>
-          <button onClick={() => setShowForm(!showForm)} className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-semibold text-sm transition-colors">
-            + New Coupon
-          </button>
-        </div>
-
-        {showForm && (
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 mb-6">
-            <h2 className="text-white font-bold text-lg mb-5">Create Coupon</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">CODE *</label>
-                <input value={form.code} onChange={e => f('code', e.target.value.toUpperCase())} placeholder="SLIME20"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">TYPE</label>
-                <select value={form.type} onChange={e => f('type', e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
-                  <option value="percent">% Percent Off</option>
-                  <option value="fixed">$ Fixed Amount Off</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">VALUE * {form.type === 'percent' ? '(%)' : '($)'}</label>
-                <input type="number" min="0" value={form.value} onChange={e => f('value', e.target.value)} placeholder={form.type === 'percent' ? '20' : '5.00'}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">MIN ORDER ($)</label>
-                <input type="number" min="0" value={form.min_order_amount} onChange={e => f('min_order_amount', e.target.value)} placeholder="0.00"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-              {form.type === 'percent' && (
+    <AdminLayout title="Coupons">
+      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+        <section className="slime-card h-fit p-6">
+          <h2 className="text-2xl font-black">Create Safe Coupon</h2>
+          <p className="mt-2 text-sm text-slate-400">Coupons are checked so they never make the order total negative.</p>
+          <div className="mt-5 grid gap-3">
+            <input className="slime-input" placeholder="Code ex: SAVE10" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} />
+            <input className="slime-input" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <textarea className="slime-input min-h-24" placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <select className="slime-input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+              <option value="percent">Percent off</option>
+              <option value="fixed">Fixed dollars off</option>
+            </select>
+            <input className="slime-input" type="number" min={0} max={form.type === 'percent' ? 100 : undefined} step="0.01" placeholder="Value" value={form.value} onChange={e => setForm({ ...form, value: Number(e.target.value) })} />
+            <input className="slime-input" type="number" min={0} step="0.01" placeholder="Minimum order amount" value={form.min_order_amount} onChange={e => setForm({ ...form, min_order_amount: e.target.value })} />
+            {form.type === 'percent' ? <input className="slime-input" type="number" min={0} step="0.01" placeholder="Max discount amount" value={form.max_discount_amount} onChange={e => setForm({ ...form, max_discount_amount: e.target.value })} /> : null}
+            <input className="slime-input" type="number" min={0} placeholder="Max uses" value={form.max_uses} onChange={e => setForm({ ...form, max_uses: e.target.value })} />
+            <label className="text-sm text-slate-400">Starts at <input className="slime-input mt-1" type="datetime-local" value={form.starts_at} onChange={e => setForm({ ...form, starts_at: e.target.value })} /></label>
+            <label className="text-sm text-slate-400">Expires at <input className="slime-input mt-1" type="datetime-local" value={form.expires_at} onChange={e => setForm({ ...form, expires_at: e.target.value })} /></label>
+            <button disabled={loading} onClick={createCoupon} className="slime-button">Create Coupon</button>
+          </div>
+        </section>
+        <section className="grid gap-4">
+          {coupons.map(coupon => (
+            <article key={coupon.id} className="slime-card p-5">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
-                  <label className="text-slate-400 text-xs font-semibold block mb-1">MAX DISCOUNT ($)</label>
-                  <input type="number" min="0" value={form.max_discount_amount} onChange={e => f('max_discount_amount', e.target.value)} placeholder="No limit"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  <h3 className="text-xl font-black">{coupon.code}</h3>
+                  <p className="text-slate-400">{coupon.type === 'percent' ? `${coupon.value}% off` : `${formatMoney(Number(coupon.value))} off`} · Used {coupon.used_count || 0}{coupon.max_uses ? `/${coupon.max_uses}` : ''}</p>
+                  <p className={coupon.is_active ? 'mt-1 text-sm font-bold text-green-300' : 'mt-1 text-sm font-bold text-yellow-200'}>{coupon.is_active ? 'Active' : 'Inactive'}</p>
                 </div>
-              )}
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">MAX USES</label>
-                <input type="number" min="0" value={form.max_uses} onChange={e => f('max_uses', e.target.value)} placeholder="Unlimited"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">EXPIRES AT</label>
-                <input type="datetime-local" value={form.expires_at} onChange={e => f('expires_at', e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs font-semibold block mb-1">DESCRIPTION</label>
-                <input value={form.description} onChange={e => f('description', e.target.value)} placeholder="Summer sale..."
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setShowForm(false); setForm(empty) }} className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-colors">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl font-semibold transition-colors">
-                {saving ? 'Creating…' : 'Create Coupon'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-center py-16 text-slate-500">Loading coupons…</div>
-        ) : coupons.length === 0 ? (
-          <div className="text-center py-16 bg-slate-800 rounded-2xl border border-slate-700">
-            <p className="text-4xl mb-3">🎟️</p>
-            <p className="text-white font-semibold mb-1">No coupons yet</p>
-            <p className="text-slate-500 text-sm">Create a coupon to offer discounts to your customers</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {coupons.map(c => (
-              <div key={c.id} className={`bg-slate-800 rounded-2xl border p-5 ${c.is_active ? 'border-slate-700' : 'border-slate-700 opacity-60'}`}>
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
-                    <p className="font-mono font-bold text-lg text-white">{c.code}</p>
-                    {c.description && <p className="text-slate-400 text-xs mt-0.5">{c.description}</p>}
-                  </div>
-                  <button onClick={() => toggle(c)}
-                    className={`w-10 h-6 rounded-full transition-all relative shrink-0 mt-1 ${c.is_active ? 'bg-green-500' : 'bg-slate-600'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${c.is_active ? 'left-[18px]' : 'left-0.5'}`} />
-                  </button>
+                <div className="flex gap-2">
+                  <button onClick={() => toggle(coupon)} className="slime-button-secondary">{coupon.is_active ? 'Disable' : 'Enable'}</button>
+                  <button onClick={() => remove(coupon.id)} className="slime-button-secondary">Delete</button>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
-                  <div className="bg-slate-700/50 rounded-xl p-2.5">
-                    <p className="text-green-400 font-bold text-base">
-                      {c.type === 'percent' ? `${c.value}% off` : formatDollars(c.value)}
-                    </p>
-                    <p className="text-slate-500 text-xs">Discount</p>
-                  </div>
-                  <div className="bg-slate-700/50 rounded-xl p-2.5">
-                    <p className="text-white font-bold text-base">{c.used_count}</p>
-                    <p className="text-slate-500 text-xs">{c.max_uses ? `of ${c.max_uses} uses` : 'uses'}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-1 text-xs mb-4">
-                  {c.min_order_amount && <p className="text-slate-400">Min order: {formatDollars(c.min_order_amount)}</p>}
-                  {c.max_discount_amount && <p className="text-slate-400">Max discount: {formatDollars(c.max_discount_amount)}</p>}
-                  {c.expires_at && <p className="text-slate-400">Expires: {new Date(c.expires_at).toLocaleDateString()}</p>}
-                </div>
-
-                <button onClick={() => del(c.id)} className="w-full py-1.5 bg-red-900/40 hover:bg-red-900 text-red-300 rounded-xl text-xs font-semibold transition-colors">
-                  🗑 Delete
-                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </AdminLayout>
-    </>
+            </article>
+          ))}
+          {!coupons.length ? <div className="slime-card p-8 text-center text-slate-400">No coupons yet.</div> : null}
+        </section>
+      </div>
+    </AdminLayout>
   )
 }

@@ -1,62 +1,79 @@
-export function formatDollars(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+export function formatMoney(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(Number.isFinite(value) ? value : 0)
 }
 
-export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date))
+export function formatDollars(amount: number | string | null | undefined): string {
+  const value = typeof amount === 'string' ? Number(amount) : amount ?? 0
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(Number.isFinite(value) ? value : 0)
 }
 
-export function formatDateTime(date: string | Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(date))
+export function timeAgo(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return 'Unknown time'
+
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+
+  if (!Number.isFinite(seconds)) return 'Unknown time'
+  if (seconds < 60) return 'just now'
+
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`
+
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`
+
+  const years = Math.floor(months / 12)
+  return `${years} year${years === 1 ? '' : 's'} ago`
 }
 
-export function timeAgo(date: string | Date): string {
-  const diff = Date.now() - new Date(date).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 7) return `${d}d ago`
-  return formatDate(date)
+export function formatDateTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return 'Unknown date'
+
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+
+  if (Number.isNaN(date.getTime())) return 'Unknown date'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
 }
 
-export function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+export function formatMinutes(minutesInput: number | string | null | undefined): string {
+  const minutes = typeof minutesInput === 'string' ? Number(minutesInput) : minutesInput ?? 0
+
+  if (!Number.isFinite(minutes)) return '0 min'
+
+  if (minutes < 60) {
+    return `${minutes} min`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+
+  if (remainingMinutes === 0) {
+    return `${hours} hr${hours === 1 ? '' : 's'}`
+  }
+
+  return `${hours} hr${hours === 1 ? '' : 's'} ${remainingMinutes} min`
 }
 
-export function formatMinutes(minutes: number): string {
-  if (!minutes) return '—'
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
-
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1048576).toFixed(1)} MB`
-}
-
-export function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2)
-}
-
-export function generateOrderNumber(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  const rand = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `SS-${rand(4)}-${rand(2)}`
-}
-
-export function parseImages(raw: unknown): string[] {
-  if (Array.isArray(raw)) return (raw as string[]).map(u => u.trim()).filter(Boolean)
-  if (typeof raw === 'string') return raw.split('\n').map(u => u.trim()).filter(Boolean)
-  return []
+export function safeMoney(value: number) {
+  return Math.round(Math.max(0, value) * 100) / 100
 }

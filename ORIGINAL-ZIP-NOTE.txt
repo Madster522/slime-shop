@@ -1,0 +1,9 @@
+The zip uploaded in the chat was named slime-studios-discord-bot(1).zip and contains a Discord bot, not the slime-shop website.
+
+This zip is a full updated slime-shop website project based on the slime-shop repo structure and requested features:
+- product customization
+- safer coupons
+- maintenance mode
+- online/offline status
+- status page
+- company settings

@@ -4,41 +4,44 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { slugify } from '@/lib/slugify'
 
-function parseImages(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map(String).map(u => u.trim()).filter(Boolean)
-  if (typeof raw === 'string') return raw.split('\n').map(u => u.trim()).filter(Boolean)
-  return []
+function cleanProduct(body: any) {
+  const name = String(body.name || '').trim()
+  return {
+    name,
+    slug: String(body.slug || slugify(name)).trim(),
+    description: String(body.description || '').trim(),
+    price: Number(body.price),
+    image_url: String(body.image_url || '').trim() || null,
+    category: String(body.category || '').trim() || null,
+    is_active: Boolean(body.is_active),
+    is_featured: Boolean(body.is_featured),
+    is_customizable: Boolean(body.is_customizable),
+    customization_schema: body.customization_schema || {},
+    updated_at: new Date().toISOString(),
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions)
   if (!session?.user?.isAdmin) return res.status(403).json({ error: 'Admin access required' })
 
-  const { id } = req.query
+  const id = String(req.query.id || '')
   const supabase = getSupabaseAdmin()
 
   if (req.method === 'PATCH') {
-    const updates: Record<string, any> = { ...req.body }
-    if (updates.name) { updates.name = updates.name.trim(); updates.slug = slugify(updates.name) }
-    if (updates.images !== undefined) updates.images = parseImages(updates.images)
-    if (updates.price !== undefined) updates.price = Number(updates.price)
-    if (updates.shipping_price !== undefined) updates.shipping_price = Number(updates.shipping_price)
-    if (updates.estimated_print_minutes !== undefined) updates.estimated_print_minutes = Number(updates.estimated_print_minutes)
-    if (updates.is_active !== undefined) updates.is_active = Boolean(updates.is_active)
-    if (updates.has_customization !== undefined) updates.has_customization = Boolean(updates.has_customization)
-    delete updates.id
-    delete updates.created_at
-    updates.updated_at = new Date().toISOString()
+    const product = cleanProduct(req.body)
+    if (!product.name) return res.status(400).json({ error: 'Product name is required' })
+    if (!Number.isFinite(product.price) || product.price < 0) return res.status(400).json({ error: 'Price must be 0 or higher' })
 
-    const { data, error } = await supabase.from('products').update(updates).eq('id', id as string).select().single()
+    const { data, error } = await supabase.from('products').update(product).eq('id', id).select().single()
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ product: data })
   }
 
   if (req.method === 'DELETE') {
-    const { error } = await supabase.from('products').delete().eq('id', id as string)
+    const { error } = await supabase.from('products').delete().eq('id', id)
     if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ success: true })
+    return res.status(200).json({ ok: true })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

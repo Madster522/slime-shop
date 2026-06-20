@@ -1,2 +1,43 @@
-// No mock data — everything comes from Supabase
-export {}
+import type { Product } from '@/types/shop'
+
+export const fallbackProducts: Product[] = [
+  {
+    id: 'demo-1',
+    name: 'Custom Slime Keychain',
+    slug: 'custom-slime-keychain',
+    description: 'A fun 3D printed slime keychain with optional custom color and name text.',
+    price: 6.99,
+    image_url: '',
+    category: 'Accessories',
+    is_active: true,
+    is_featured: true,
+    is_customizable: true,
+    customization_schema: { allow_text: true, allow_color: true, allow_size: false },
+  },
+  {
+    id: 'demo-2',
+    name: 'Desk Slime Figure',
+    slug: 'desk-slime-figure',
+    description: 'A small collectible slime figure for desks, shelves, or gaming setups.',
+    price: 12.5,
+    image_url: '',
+    category: 'Figures',
+    is_active: true,
+    is_featured: true,
+    is_customizable: false,
+    customization_schema: {},
+  },
+  {
+    id: 'demo-3',
+    name: 'Slime Name Plate',
+    slug: 'slime-name-plate',
+    description: 'A personalized 3D printed name plate for your room or setup.',
+    price: 14.99,
+    image_url: '',
+    category: 'Custom Prints',
+    is_active: true,
+    is_featured: false,
+    is_customizable: true,
+    customization_schema: { allow_text: true, allow_color: true, allow_size: true },
+  },
+]

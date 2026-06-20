@@ -1,59 +1,38 @@
-import React, { useState } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/router'
-import AdminSidebar from './AdminSidebar'
+import Link from 'next/link'
+import React from 'react'
+import AdminGuard from '@/components/ui/AdminGuard'
 
-interface Props {
-  children: React.ReactNode
-  title: string
-}
+const links = [
+  ['/admin', 'Dashboard'],
+  ['/admin/products', 'Products'],
+  ['/admin/coupons', 'Coupons'],
+  ['/admin/settings', 'Company Settings'],
+]
 
-export default function AdminLayout({ children, title }: Props) {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400 text-sm">Loading…</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!session?.user?.isAdmin) {
-    if (typeof window !== 'undefined') router.replace('/')
-    return null
-  }
-
+export default function AdminLayout({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-900">
-      <AdminSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-700/50 px-4 sm:px-6 py-3 flex items-center gap-4">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-700 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
-          </button>
-          <h1 className="text-white font-bold text-lg flex-1 truncate">{title}</h1>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse hidden sm:block" />
-            <span className="text-slate-500 text-xs hidden sm:block">Live</span>
-          </div>
+    <AdminGuard>
+      <main className="min-h-screen bg-slate-950 text-white">
+        <div className="mx-auto flex max-w-7xl gap-6 px-6 py-8">
+          <aside className="hidden w-64 shrink-0 md:block">
+            <div className="slime-card sticky top-24 p-4">
+              <div className="px-3 pb-4 text-xl font-black">Admin Panel</div>
+              <nav className="flex flex-col gap-2">
+                {links.map(([href, label]) => (
+                  <Link key={href} href={href} className="rounded-xl px-3 py-2 font-semibold text-slate-300 hover:bg-white/10 hover:text-white">{label}</Link>
+                ))}
+              </nav>
+            </div>
+          </aside>
+          <section className="min-w-0 flex-1">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <h1 className="text-3xl font-black">{title}</h1>
+              <Link href="/" className="slime-button-secondary">View Store</Link>
+            </div>
+            {children}
+          </section>
         </div>
-
-        {/* Page content */}
-        <main className="p-4 sm:p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+      </main>
+    </AdminGuard>
   )
 }

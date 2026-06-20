@@ -1,96 +1,106 @@
-# 🟢 Slime Shop — 3D Printed Products E-Commerce
+# Slime Shop — Full Updated Version
 
-A full-stack Next.js + Supabase shop for custom 3D printed slime-themed products.
+This is a full Next.js + Supabase shop project with the requested upgrades already added.
 
-## Tech Stack
-- **Next.js 14** (Pages Router, TypeScript)
-- **Supabase** (PostgreSQL database + Auth)
-- **NextAuth** (Google OAuth)
-- **Square** (Payments + Apple Pay)
-- **Tailwind CSS** (Styling)
-- **qrcode.react** (Thank You card QR codes)
+## Added features
 
-## Quick Start
+- Admin product manager with customizable product fields
+- Product page custom options: text/name, preferred color, and size
+- Admin coupon manager
+- Safe coupon math so the order total can never go below `$0.00`
+- Admin company settings page
+- Maintenance mode
+- Public `/status` page
+- Top online/offline banner
+- More professional company-style homepage and footer
+
+## Setup steps
+
+### 1. Unzip this folder
+
+Unzip `slime-shop-full-updated.zip`.
+
+### 2. Install packages
 
 ```bash
-# 1. Install
 npm install
+```
 
-# 2. Set up environment
+### 3. Create `.env.local`
+
+Copy `.env.example` to `.env.local`:
+
+```bash
 cp .env.example .env.local
-# Fill in all keys (see below)
+```
 
-# 3. Run Supabase schema
-# Copy supabase/schema.sql → paste into Supabase SQL Editor → Run
+Fill in your Supabase keys, NextAuth secret, and Google OAuth keys.
 
-# 4. Start dev server
+### 4. Run the Supabase SQL
+
+Open Supabase → SQL Editor → paste everything from:
+
+```text
+supabase/schema.sql
+```
+
+Then click **Run**.
+
+### 5. Set your admin email
+
+Open:
+
+```text
+config/constants.ts
+```
+
+Make sure your email is inside `ADMIN_EMAILS`.
+
+### 6. Run locally
+
+```bash
 npm run dev
-
-# 5. (Optional) Start printer bridge for USB/Bambu
-npm run bridge
 ```
 
-## Environment Variables
+Then open:
 
-```env
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=<32 random chars>
-
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
-
-# Square — get from https://developer.squareup.com/apps
-NEXT_PUBLIC_SQUARE_APP_ID=sandbox-sq0idb-xxx
-NEXT_PUBLIC_SQUARE_LOCATION_ID=xxx
-SQUARE_ACCESS_TOKEN=EAAAxxxx
-SQUARE_ENVIRONMENT=sandbox   # change to: production
-
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+```text
+http://localhost:3000
 ```
 
-## Admin Access
-Add your email to `ADMIN_EMAILS` in `config/constants.ts`:
-```ts
-export const ADMIN_EMAILS = ['your@email.com']
+### 7. Open admin panel
+
+Go to:
+
+```text
+http://localhost:3000/admin
 ```
 
-## Pages
-| Route | Description |
-|---|---|
-| `/` | Homepage with featured products |
-| `/shop` | Full product catalog |
-| `/product/[slug]` | Product detail + add to cart |
-| `/cart` | Shopping cart |
-| `/checkout` | Square payment checkout |
-| `/track` | Order tracking |
-| `/account` | Order history |
-| `/admin` | Dashboard |
-| `/admin/orders` | Order management |
-| `/admin/products` | Product CRUD |
-| `/admin/printers` | Printer management |
-| `/admin/print-queue` | Print queue |
-| `/admin/monitoring` | Live printer status + alerts |
-| `/admin/thank-you-cards` | Print thank you cards with QR codes |
-| `/admin/bugs` | Bug report tracker |
+Use your Google admin login.
 
-## Thank You Cards
-Update links in `pages/admin/thank-you-cards.tsx`:
-```ts
-const LINKS = {
-  website: 'https://yoursite.com',
-  discord: 'https://discord.gg/invite',
-  roblox:  'https://roblox.com/groups/ID',
-}
+### 8. Push to GitHub
+
+```bash
+git init
+git add .
+git commit -m "Add full updated slime shop"
+git branch -M main
+git remote add origin https://github.com/Madster522/slime-shop.git
+git push -u origin main
 ```
 
-## Square Production
-1. Get production keys from Square Developer Dashboard
-2. Change `.env.local`:
-   - `SQUARE_ENVIRONMENT=production`
-   - `NEXT_PUBLIC_SQUARE_APP_ID=sq0idp-xxx` (production app ID)
-   - `SQUARE_ACCESS_TOKEN=EAAAxxxx` (production access token)
-3. Change script src in `checkout.tsx` to `https://web.squarecdn.com/v1/square.js`
+If this repo already exists locally, use:
+
+```bash
+git add .
+git commit -m "Add maintenance status products and safe coupons"
+git push origin main
+```
+
+### 9. Vercel
+
+After pushing to GitHub, Vercel should redeploy automatically. Add the same `.env.local` variables into Vercel Project Settings → Environment Variables.
+
+## Notes
+
+The checkout page is left as a payment placeholder so you can reconnect Stripe or Square safely. The cart, customization, coupon safety, maintenance mode, and status controls are already wired up.

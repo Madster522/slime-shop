@@ -1,129 +1,72 @@
-import React from 'react'
-import Head from 'next/head'
+import { useState } from 'react'
+import toast from 'react-hot-toast'
 import Link from 'next/link'
-import Navbar from '@/components/layout/Navbar'
-import Footer from '@/components/layout/Footer'
-import { useCart } from '@/context/CartContext'
-import { formatDollars } from '@/lib/utils'
+import { getCustomizationKey, useCart } from '@/context/CartContext'
+import { formatMoney } from '@/lib/utils'
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal, shippingTotal, total, clearCart } = useCart()
+  const { items, subtotal, discount, total, coupon, setCoupon, updateQuantity, removeItem } = useCart()
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function applyCoupon() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/coupons/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not apply coupon')
+      setCoupon(data.coupon)
+      toast.success(data.coupon.message || 'Coupon applied')
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <Head><title>Cart — Slime Shop</title></Head>
-      <Navbar />
-      <main className="pt-20 pb-20 min-h-screen bg-slate-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 mt-4">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Your Cart 🛒</h1>
-            {items.length > 0 && (
-              <button onClick={clearCart} className="text-sm text-red-500 hover:text-red-700 font-semibold">
-                Clear Cart
-              </button>
-            )}
-          </div>
-
-          {items.length === 0 ? (
-            <div className="text-center py-24 bg-white rounded-3xl border border-slate-100">
-              <div className="text-7xl mb-6">🛒</div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Your cart is empty</h2>
-              <p className="text-slate-500 mb-8">Add some awesome slime products!</p>
-              <Link href="/shop" className="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-2xl transition-colors text-lg">
-                Browse Shop
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Items */}
-              <div className="lg:col-span-2 space-y-4">
-                {items.map(item => (
-                  <div key={item.product.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex gap-4">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-green-50 shrink-0">
-                      {item.product.images?.[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl">🟢</div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-bold text-slate-800 leading-tight">{item.product.name}</h3>
-                          <p className="text-xs text-slate-500 mt-0.5">{item.product.category}</p>
-                        </div>
-                        <button onClick={() => removeItem(item.product.id)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0 p-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                          </svg>
-                        </button>
-                      </div>
-
-                      {item.customization && Object.values(item.customization).some(Boolean) && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {Object.values(item.customization).filter(Boolean).map((v, i) => (
-                            <span key={i} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{v}</span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                        {/* Qty */}
-                        <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
-                          <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-50 font-bold transition-colors">−</button>
-                          <span className="px-3 py-1.5 font-semibold text-slate-800 min-w-[32px] text-center text-sm">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-50 font-bold transition-colors">+</button>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">{formatDollars(item.product.price * item.quantity)}</p>
-                          <p className="text-xs text-slate-400">+{formatDollars(item.product.shipping_price || 0)} ship</p>
-                        </div>
-                      </div>
-                    </div>
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+      <section className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_420px]">
+        <div>
+          <h1 className="text-4xl font-black">Cart</h1>
+          <div className="mt-8 grid gap-4">
+            {!items.length ? <div className="slime-card p-8 text-center text-slate-400">Your cart is empty. <Link href="/shop" className="text-green-300">Shop now</Link>.</div> : null}
+            {items.map(item => {
+              const key = getCustomizationKey(item.customization)
+              return (
+                <div key={`${item.product.id}-${key}`} className="slime-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-green-500/10 text-4xl">🧪</div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-black">{item.product.name}</h2>
+                    <p className="text-green-300 font-bold">{formatMoney(item.product.price)}</p>
+                    {item.customization ? <p className="mt-2 text-sm text-slate-400">Custom: {Object.entries(item.customization).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ') || 'None'}</p> : null}
                   </div>
-                ))}
-              </div>
-
-              {/* Summary */}
-              <div>
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sticky top-24">
-                  <h3 className="font-bold text-xl text-slate-800 mb-5">Order Summary</h3>
-                  <div className="space-y-2 mb-4">
-                    {items.map(item => (
-                      <div key={item.product.id} className="flex justify-between text-sm text-slate-600">
-                        <span className="truncate mr-3">{item.product.name} ×{item.quantity}</span>
-                        <span className="shrink-0">{formatDollars(item.product.price * item.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="border-t border-slate-100 pt-3 space-y-2">
-                    <div className="flex justify-between text-sm text-slate-500">
-                      <span>Subtotal</span><span>{formatDollars(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-slate-500">
-                      <span>Shipping</span><span>{formatDollars(shippingTotal)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-slate-800 text-lg pt-1 border-t border-slate-100">
-                      <span>Total</span>
-                      <span className="text-green-600 text-xl">{formatDollars(total)}</span>
-                    </div>
-                  </div>
-                  <Link href="/checkout"
-                    className="mt-5 w-full inline-flex items-center justify-center py-4 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold rounded-2xl text-lg transition-all shadow-sm">
-                    Checkout →
-                  </Link>
-                  <Link href="/shop" className="block text-center text-sm text-slate-400 hover:text-slate-600 mt-3 transition-colors">
-                    ← Continue Shopping
-                  </Link>
+                  <input type="number" min={1} value={item.quantity} onChange={e => updateQuantity(item.product.id, Number(e.target.value), key)} className="slime-input sm:w-24" />
+                  <button onClick={() => removeItem(item.product.id, key)} className="slime-button-secondary">Remove</button>
                 </div>
-              </div>
-            </div>
-          )}
+              )
+            })}
+          </div>
         </div>
-      </main>
-      <Footer />
-    </>
+        <aside className="slime-card h-fit p-6">
+          <h2 className="text-2xl font-black">Order Summary</h2>
+          <div className="mt-5 space-y-3 text-slate-300">
+            <div className="flex justify-between"><span>Subtotal</span><span>{formatMoney(subtotal)}</span></div>
+            <div className="flex justify-between"><span>Discount {coupon ? `(${coupon.code})` : ''}</span><span>-{formatMoney(discount)}</span></div>
+            <div className="border-t border-white/10 pt-3 flex justify-between text-xl font-black text-white"><span>Total</span><span>{formatMoney(total)}</span></div>
+          </div>
+          <div className="mt-6 flex gap-2">
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Coupon code" className="slime-input" />
+            <button onClick={applyCoupon} disabled={loading || !items.length} className="slime-button">Apply</button>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">Coupons are capped so your total never goes below $0.00.</p>
+          <Link href="/checkout" className={`mt-6 w-full ${items.length ? 'slime-button' : 'slime-button opacity-50 pointer-events-none'}`}>Checkout</Link>
+        </aside>
+      </section>
+    </main>
   )
 }

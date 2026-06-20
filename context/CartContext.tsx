@@ -1,126 +1,91 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import toast from 'react-hot-toast'
-import type { Product, CartItem } from '@/types'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import type { AppliedCoupon, CartCustomization, CartItem, Product } from '@/types/shop'
+import { safeMoney } from '@/lib/utils'
 
-interface CartState { items: CartItem[] }
-
-type CartAction =
-  | { type: 'ADD_ITEM'; product: Product; quantity: number; customization?: Record<string, string> }
-  | { type: 'REMOVE_ITEM'; productId: string }
-  | { type: 'UPDATE_QUANTITY'; productId: string; quantity: number }
-  | { type: 'CLEAR_CART' }
-  | { type: 'HYDRATE'; items: CartItem[] }
-
-interface CartContextType {
+type CartContextValue = {
   items: CartItem[]
-  itemCount: number
+  coupon: AppliedCoupon | null
   subtotal: number
-  shippingTotal: number
+  discount: number
   total: number
-  addItem: (product: Product, quantity?: number, customization?: Record<string, string>) => void
-  removeItem: (productId: string) => void
-  updateQuantity: (productId: string, quantity: number) => void
+  count: number
+  addItem: (product: Product, quantity?: number, customization?: CartCustomization) => void
+  updateQuantity: (id: string, quantity: number, customizationKey?: string) => void
+  removeItem: (id: string, customizationKey?: string) => void
   clearCart: () => void
+  setCoupon: (coupon: AppliedCoupon | null) => void
 }
 
-const CartContext = createContext<CartContextType | null>(null)
+const CartContext = createContext<CartContextValue | null>(null)
 
-function cartReducer(state: CartState, action: CartAction): CartState {
-  switch (action.type) {
-    case 'HYDRATE':
-      return { items: action.items }
-
-    case 'ADD_ITEM': {
-      const existing = state.items.findIndex(i => i.product.id === action.product.id)
-      if (existing >= 0) {
-        const updated = [...state.items]
-        updated[existing] = {
-          ...updated[existing],
-          quantity: updated[existing].quantity + action.quantity,
-        }
-        return { items: updated }
-      }
-      return {
-        items: [...state.items, {
-          product: action.product,
-          quantity: action.quantity,
-          customization: action.customization || {},
-        }],
-      }
-    }
-
-    case 'REMOVE_ITEM':
-      return { items: state.items.filter(i => i.product.id !== action.productId) }
-
-    case 'UPDATE_QUANTITY': {
-      if (action.quantity <= 0) return { items: state.items.filter(i => i.product.id !== action.productId) }
-      return {
-        items: state.items.map(i =>
-          i.product.id === action.productId ? { ...i, quantity: action.quantity } : i
-        ),
-      }
-    }
-
-    case 'CLEAR_CART':
-      return { items: [] }
-
-    default:
-      return state
-  }
+function customizationKey(customization?: CartCustomization) {
+  return JSON.stringify(customization || {})
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, { items: [] })
+  const [items, setItems] = useState<CartItem[]>([])
+  const [coupon, setCouponState] = useState<AppliedCoupon | null>(null)
 
-  // Hydrate from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem('slime-cart')
-      if (saved) {
-        const items = JSON.parse(saved) as CartItem[]
-        if (Array.isArray(items) && items.length > 0) {
-          dispatch({ type: 'HYDRATE', items })
-        }
-      }
-    } catch { /* ignore */ }
+      if (saved) setItems(JSON.parse(saved))
+    } catch {}
   }, [])
 
-  // Persist to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem('slime-cart', JSON.stringify(state.items))
-    } catch { /* ignore */ }
-  }, [state.items])
+    localStorage.setItem('slime-cart', JSON.stringify(items))
+  }, [items])
 
-  const addItem = (product: Product, quantity = 1, customization?: Record<string, string>) => {
-    dispatch({ type: 'ADD_ITEM', product, quantity, customization })
-    toast.success(`${product.name} added to cart!`, { icon: '🛒' })
+  const subtotal = useMemo(() => safeMoney(items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)), [items])
+  const discount = useMemo(() => safeMoney(Math.min(coupon?.discount || 0, subtotal)), [coupon, subtotal])
+  const total = useMemo(() => safeMoney(subtotal - discount), [subtotal, discount])
+  const count = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items])
+
+  function addItem(product: Product, quantity = 1, customization?: CartCustomization) {
+    setItems(current => {
+      const key = customizationKey(customization)
+      const existingIndex = current.findIndex(item => item.product.id === product.id && customizationKey(item.customization) === key)
+      if (existingIndex >= 0) {
+        return current.map((item, index) => index === existingIndex ? { ...item, quantity: item.quantity + quantity } : item)
+      }
+      return [...current, { product, quantity, customization }]
+    })
+    setCouponState(null)
   }
 
-  const removeItem = (productId: string) => dispatch({ type: 'REMOVE_ITEM', productId })
+  function updateQuantity(id: string, quantity: number, key?: string) {
+    if (quantity <= 0) return removeItem(id, key)
+    setItems(current => current.map(item => {
+      const itemKey = customizationKey(item.customization)
+      return item.product.id === id && (!key || key === itemKey) ? { ...item, quantity } : item
+    }))
+    setCouponState(null)
+  }
 
-  const updateQuantity = (productId: string, quantity: number) =>
-    dispatch({ type: 'UPDATE_QUANTITY', productId, quantity })
+  function removeItem(id: string, key?: string) {
+    setItems(current => current.filter(item => !(item.product.id === id && (!key || customizationKey(item.customization) === key))))
+    setCouponState(null)
+  }
 
-  const clearCart = () => dispatch({ type: 'CLEAR_CART' })
-
-  const itemCount    = state.items.reduce((s, i) => s + i.quantity, 0)
-  const subtotal     = state.items.reduce((s, i) => s + i.product.price * i.quantity, 0)
-  const shippingTotal = state.items.reduce((s, i) => Math.max(s, i.product.shipping_price || 0), 0)
-  const total        = subtotal + shippingTotal
+  function clearCart() {
+    setItems([])
+    setCouponState(null)
+  }
 
   return (
-    <CartContext.Provider value={{
-      items: state.items, itemCount, subtotal, shippingTotal, total,
-      addItem, removeItem, updateQuantity, clearCart,
-    }}>
+    <CartContext.Provider value={{ items, coupon, subtotal, discount, total, count, addItem, updateQuantity, removeItem, clearCart, setCoupon: setCouponState }}>
       {children}
     </CartContext.Provider>
   )
 }
 
 export function useCart() {
-  const ctx = useContext(CartContext)
-  if (!ctx) throw new Error('useCart must be used inside CartProvider')
-  return ctx
+  const value = useContext(CartContext)
+  if (!value) throw new Error('useCart must be used inside CartProvider')
+  return value
+}
+
+export function getCustomizationKey(customization?: CartCustomization) {
+  return customizationKey(customization)
 }

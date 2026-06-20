@@ -1,276 +1,85 @@
--- =====================================================
--- SLIME SHOP — COMPLETE SCHEMA
--- Run in Supabase SQL Editor (replaces everything)
--- =====================================================
+-- Slime Shop full updated schema
+-- Paste this whole file into Supabase SQL Editor and run it.
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+create extension if not exists "pgcrypto";
 
-DROP TABLE IF EXISTS bug_reports         CASCADE;
-DROP TABLE IF EXISTS ai_alerts           CASCADE;
-DROP TABLE IF EXISTS print_jobs          CASCADE;
-DROP TABLE IF EXISTS printers            CASCADE;
-DROP TABLE IF EXISTS order_status_history CASCADE;
-DROP TABLE IF EXISTS order_items         CASCADE;
-DROP TABLE IF EXISTS orders              CASCADE;
-DROP TABLE IF EXISTS products            CASCADE;
-DROP TABLE IF EXISTS profiles            CASCADE;
-
--- ── Profiles ─────────────────────────────────────────
-CREATE TABLE profiles (
-  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email      TEXT UNIQUE NOT NULL,
-  name       TEXT,
-  avatar_url TEXT,
-  is_admin   BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text unique not null,
+  description text,
+  price numeric(10,2) not null default 0 check (price >= 0),
+  image_url text,
+  category text,
+  is_active boolean not null default true,
+  is_featured boolean not null default false,
+  is_customizable boolean not null default false,
+  customization_schema jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- ── Products ─────────────────────────────────────────
-CREATE TABLE products (
-  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name                    TEXT NOT NULL,
-  slug                    TEXT UNIQUE NOT NULL,
-  description             TEXT DEFAULT '',
-  price                   NUMERIC(10,2) NOT NULL,
-  shipping_price          NUMERIC(10,2) DEFAULT 4.00,
-  images                  TEXT[] DEFAULT '{}',
-  category                TEXT DEFAULT 'General',
-  stock_status            TEXT DEFAULT 'made_to_order' CHECK (stock_status IN ('in_stock','out_of_stock','made_to_order')),
-  is_active               BOOLEAN DEFAULT TRUE,
-  is_featured             BOOLEAN DEFAULT FALSE,
-  has_customization       BOOLEAN DEFAULT FALSE,
-  customization_options   JSONB DEFAULT '[]',
-  estimated_print_minutes INTEGER DEFAULT 60,
-  created_at              TIMESTAMPTZ DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ DEFAULT NOW()
+create table if not exists public.coupons (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text,
+  description text,
+  type text not null check (type in ('percent', 'fixed')),
+  value numeric(10,2) not null check (value > 0),
+  min_order_amount numeric(10,2),
+  max_discount_amount numeric(10,2),
+  max_uses integer,
+  used_count integer not null default 0,
+  starts_at timestamptz,
+  expires_at timestamptz,
+  applies_to_shipping boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint percent_coupon_max check (type <> 'percent' or value <= 100)
 );
 
--- ── Orders ───────────────────────────────────────────
-CREATE TABLE orders (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_number     TEXT UNIQUE NOT NULL,
-  customer_email   TEXT NOT NULL,
-  customer_name    TEXT NOT NULL,
-  status           TEXT DEFAULT 'Pending',
-  shipping_address JSONB NOT NULL,
-  billing_address  JSONB,
-  subtotal         NUMERIC(10,2) NOT NULL DEFAULT 0,
-  shipping_total   NUMERIC(10,2) NOT NULL DEFAULT 0,
-  total            NUMERIC(10,2) NOT NULL DEFAULT 0,
-  tracking_number  TEXT,
-  carrier          TEXT,
-  estimated_delivery DATE,
-  delay_reason     TEXT,
-  internal_notes   TEXT,
-  payment_status   TEXT DEFAULT 'pending',
-  card_last4       TEXT,
-  card_brand       TEXT,
-  square_payment_id TEXT,
-  square_receipt_url TEXT,
-  created_at       TIMESTAMPTZ DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ DEFAULT NOW()
+create table if not exists public.site_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
 );
 
--- ── Order Items ──────────────────────────────────────
-CREATE TABLE order_items (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id      UUID REFERENCES orders(id) ON DELETE CASCADE,
-  product_id    UUID REFERENCES products(id) ON DELETE SET NULL,
-  product_name  TEXT NOT NULL,
-  quantity      INTEGER NOT NULL DEFAULT 1,
-  unit_price    NUMERIC(10,2) NOT NULL,
-  shipping_price NUMERIC(10,2) DEFAULT 0,
-  customization JSONB DEFAULT '{}'
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  customer_email text,
+  customer_name text,
+  status text not null default 'pending',
+  subtotal numeric(10,2) not null default 0,
+  discount numeric(10,2) not null default 0,
+  total numeric(10,2) not null default 0,
+  coupon_code text,
+  items jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint order_total_not_negative check (total >= 0),
+  constraint order_discount_safe check (discount >= 0 and discount <= subtotal)
 );
 
--- ── Order Status History ─────────────────────────────
-CREATE TABLE order_status_history (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id      UUID REFERENCES orders(id) ON DELETE CASCADE,
-  status        TEXT NOT NULL,
-  note          TEXT,
-  internal_note TEXT,
-  changed_by    TEXT,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);
+insert into public.site_settings (key, value) values
+('company', '{"company_name":"Slime Shop","tagline":"Custom 3D printed slime products","support_email":"","discord_url":"","business_hours":"Mon-Fri after school / evenings","announcement":""}'::jsonb),
+('status', '{"store_online":true,"accepting_orders":true,"maintenance_mode":false,"maintenance_title":"Slime Shop is getting upgraded","maintenance_message":"We are updating the store. Please check back soon.","banner_enabled":true,"banner_message":"Slime Shop is online and accepting custom orders.","last_updated_by":"system"}'::jsonb)
+on conflict (key) do nothing;
 
--- ── Printers ─────────────────────────────────────────
-CREATE TABLE printers (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name            TEXT NOT NULL,
-  type            TEXT DEFAULT 'FDM',
-  connection_type TEXT NOT NULL DEFAULT 'usb',
-  ip_address      TEXT,
-  port            INTEGER DEFAULT 80,
-  api_key         TEXT,
-  access_code     TEXT,
-  serial_number   TEXT,
-  status          TEXT DEFAULT 'unknown',
-  is_active       BOOLEAN DEFAULT TRUE,
-  notes           TEXT,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
+insert into public.products (name, slug, description, price, category, is_featured, is_customizable, customization_schema) values
+('Custom Slime Keychain', 'custom-slime-keychain', 'A fun 3D printed slime keychain with optional custom color and name text.', 6.99, 'Accessories', true, true, '{"allow_text":true,"allow_color":true,"allow_size":false}'::jsonb),
+('Desk Slime Figure', 'desk-slime-figure', 'A small collectible slime figure for desks, shelves, or gaming setups.', 12.50, 'Figures', true, false, '{}'::jsonb),
+('Slime Name Plate', 'slime-name-plate', 'A personalized 3D printed name plate for your room or setup.', 14.99, 'Custom Prints', false, true, '{"allow_text":true,"allow_color":true,"allow_size":true}'::jsonb)
+on conflict (slug) do nothing;
 
--- ── Print Jobs ───────────────────────────────────────
-CREATE TABLE print_jobs (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id         UUID REFERENCES orders(id) ON DELETE SET NULL,
-  printer_id       UUID REFERENCES printers(id) ON DELETE SET NULL,
-  product_name     TEXT NOT NULL,
-  customization    JSONB DEFAULT '{}',
-  status           TEXT DEFAULT 'waiting',
-  queue_position   INTEGER,
-  started_at       TIMESTAMPTZ,
-  completed_at     TIMESTAMPTZ,
-  estimated_minutes INTEGER DEFAULT 60,
-  failure_reason   TEXT,
-  retry_count      INTEGER DEFAULT 0,
-  notes            TEXT,
-  created_at       TIMESTAMPTZ DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ DEFAULT NOW()
-);
+-- RLS is enabled for public safety. Server-side admin APIs use the Supabase service role key.
+alter table public.products enable row level security;
+alter table public.coupons enable row level security;
+alter table public.site_settings enable row level security;
+alter table public.orders enable row level security;
 
--- ── AI / System Alerts ───────────────────────────────
-CREATE TABLE ai_alerts (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  printer_id      UUID REFERENCES printers(id) ON DELETE CASCADE,
-  type            TEXT NOT NULL,
-  severity        TEXT DEFAULT 'medium',
-  message         TEXT NOT NULL,
-  suggestion      TEXT,
-  acknowledged    BOOLEAN DEFAULT FALSE,
-  acknowledged_by TEXT,
-  acknowledged_at TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
-);
+drop policy if exists "Public can read active products" on public.products;
+create policy "Public can read active products" on public.products for select using (is_active = true);
 
--- ── Bug Reports ──────────────────────────────────────
-CREATE TABLE bug_reports (
-  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  title               TEXT NOT NULL,
-  description         TEXT NOT NULL,
-  severity            TEXT DEFAULT 'medium' CHECK (severity IN ('low','medium','high','critical')),
-  category            TEXT DEFAULT 'general',
-  status              TEXT DEFAULT 'open' CHECK (status IN ('open','in_progress','fixed','wont_fix')),
-  reported_by         TEXT NOT NULL,
-  page_url            TEXT,
-  steps_to_reproduce  TEXT,
-  expected_behavior   TEXT,
-  actual_behavior     TEXT,
-  fixed_by            TEXT,
-  fixed_at            TIMESTAMPTZ,
-  fix_notes           TEXT,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Indexes ──────────────────────────────────────────
-CREATE INDEX idx_products_active    ON products(is_active);
-CREATE INDEX idx_products_slug      ON products(slug);
-CREATE INDEX idx_products_category  ON products(category);
-CREATE INDEX idx_products_featured  ON products(is_featured);
-CREATE INDEX idx_orders_email       ON orders(customer_email);
-CREATE INDEX idx_orders_status      ON orders(status);
-CREATE INDEX idx_orders_created     ON orders(created_at DESC);
-CREATE INDEX idx_order_items_order  ON order_items(order_id);
-CREATE INDEX idx_print_jobs_status  ON print_jobs(status);
-
--- ── Row Level Security ───────────────────────────────
-ALTER TABLE profiles          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE products          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_items       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE printers          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE print_jobs        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ai_alerts         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bug_reports       ENABLE ROW LEVEL SECURITY;
-
--- Public: active products only
-CREATE POLICY "Public read active products"
-  ON products FOR SELECT USING (is_active = TRUE);
-
--- Users see their own orders
-CREATE POLICY "Users see own orders"
-  ON orders FOR SELECT
-  USING (customer_email = current_setting('request.jwt.claims', true)::json->>'email');
-
-CREATE POLICY "Users see own order items"
-  ON order_items FOR SELECT
-  USING (order_id IN (
-    SELECT id FROM orders
-    WHERE customer_email = current_setting('request.jwt.claims', true)::json->>'email'
-  ));
-
-CREATE POLICY "Users see own order history"
-  ON order_status_history FOR SELECT
-  USING (order_id IN (
-    SELECT id FROM orders
-    WHERE customer_email = current_setting('request.jwt.claims', true)::json->>'email'
-  ));
-
--- Service role bypasses RLS (backend API uses service role)
-
--- =============================================
--- NEW TABLES: Coupons, Reviews, Contact, Newsletter
--- Add these to your existing schema
--- =============================================
-
-CREATE TABLE IF NOT EXISTS coupons (
-  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  code                TEXT UNIQUE NOT NULL,
-  type                TEXT NOT NULL CHECK (type IN ('percent','fixed')),
-  value               NUMERIC(10,2) NOT NULL,
-  min_order_amount    NUMERIC(10,2),
-  max_discount_amount NUMERIC(10,2),
-  max_uses            INTEGER,
-  used_count          INTEGER DEFAULT 0,
-  is_active           BOOLEAN DEFAULT TRUE,
-  description         TEXT,
-  expires_at          TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS reviews (
-  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  product_id     UUID REFERENCES products(id) ON DELETE CASCADE,
-  rating         INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  title          TEXT,
-  body           TEXT,
-  reviewer_name  TEXT NOT NULL,
-  reviewer_email TEXT NOT NULL,
-  is_approved    BOOLEAN DEFAULT FALSE,
-  created_at     TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS contact_messages (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name         TEXT NOT NULL,
-  email        TEXT NOT NULL,
-  subject      TEXT DEFAULT 'General Inquiry',
-  message      TEXT NOT NULL,
-  order_number TEXT,
-  is_read      BOOLEAN DEFAULT FALSE,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS newsletter_subscribers (
-  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email          TEXT UNIQUE NOT NULL,
-  subscribed_at  TIMESTAMPTZ DEFAULT NOW(),
-  is_active      BOOLEAN DEFAULT TRUE
-);
-
--- Add square_payment_id & coupon fields to orders if not already present
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS square_payment_id  TEXT;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS square_receipt_url TEXT;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_id          UUID REFERENCES coupons(id);
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount           NUMERIC(10,2) DEFAULT 0;
-
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_reviews_product    ON reviews(product_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_approved   ON reviews(is_approved);
-CREATE INDEX IF NOT EXISTS idx_coupons_code       ON coupons(code);
-CREATE INDEX IF NOT EXISTS idx_coupons_active     ON coupons(is_active);
+drop policy if exists "Public can read site settings" on public.site_settings;
+create policy "Public can read site settings" on public.site_settings for select using (true);

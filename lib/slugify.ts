@@ -1,8 +1,7 @@
-export function slugify(text: string): string {
-  return text
+export function slugify(value: string) {
+  return value
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
 }
